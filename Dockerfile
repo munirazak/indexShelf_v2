@@ -18,6 +18,7 @@ COPY --from=build --chown=app:app /app/target/indexShelf-0.0.1-SNAPSHOT.jar app.
 
 USER app
 
+# Default local/Docker port. GCP Cloud Run injects PORT at runtime.
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

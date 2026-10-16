@@ -157,6 +157,30 @@ Stop with `docker compose down` (add `-v` to also remove the DB volume).
 
 Base URL: `http://localhost:8080`
 
+### Port and profile (local vs GCP)
+
+| Setting | Local default | Production / GCP |
+|---------|---------------|------------------|
+| Port | `8080` (`PORT` unset) | Set env `PORT` (Cloud Run sets this, often `8080`) |
+| Profile | `dev` | Set env `SPRING_PROFILES_ACTIVE=prod` |
+
+`application.properties` uses:
+
+```properties
+server.port=${PORT:8080}
+spring.profiles.active=${SPRING_PROFILES_ACTIVE:dev}
+```
+
+On GCP (Cloud Run), configure env vars such as:
+
+- `SPRING_PROFILES_ACTIVE=prod`
+- `PORT` — leave to Google, or set explicitly
+- `JWT_SECRET` — same value as UserManagement
+- `BOOKMANAGEMENT_BASE_URL` — Cloud Run URL of BookManagement (e.g. `https://book-management-....run.app`)
+- `USERMANAGEMENT_BASE_URL` — Cloud Run URL of UserManagement (e.g. `https://user-management-....run.app`)
+
+IndexShelf has **no database** / Cloud SQL. Do **not** bake `prod` into the JAR; override with env vars at deploy time.
+
 ### Tests and coverage
 
 ```bash
