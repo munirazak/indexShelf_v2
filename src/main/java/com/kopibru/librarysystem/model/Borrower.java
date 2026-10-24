@@ -6,6 +6,7 @@ public class Borrower {
     private String libraryId;
     private String name;
     private String email;
+    private String role;
 
     public Borrower() {
     }
@@ -14,6 +15,7 @@ public class Borrower {
         this.libraryId = libraryId;
         this.name = name;
         this.email = email;
+        this.role = "BORROWER";
     }
 
     public Long getId() {
@@ -46,5 +48,13 @@ public class Borrower {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

@@ -41,7 +41,7 @@ Assumptions for requirements **not explicitly stated** in the task brief are lis
 | Topic                             | Assumption                                                                                                                                                    |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Borrower primary key              | Owned by **UserManagement**. Surrogate `id` (`BIGSERIAL`). Business key `libraryId` remains unique and is supplied by the client on registration.             |
-| Borrower credentials              | Owned by **UserManagement** (`borrower_credentials`: `username`, BCrypt-hashed `password`), linked to `borrowers.library_id` with `ON DELETE CASCADE`.        |
+| Borrower credentials              | Owned by **UserManagement** (`borrower_credentials`: `username`, BCrypt-hashed `password`), linked to `borrowers.id` with `ON DELETE CASCADE`.                |
 | Borrower email                    | Must be present and syntactically valid (`@Email`). Duplicate emails are allowed unless they share the same `libraryId`.                                      |
 | Book unique id                    | Interpreting “Book” for borrow/return as a **physical copy**. Unique id is `book_copy.id` (string, client-supplied).                                          |
 | ISBN + title + author             | Stored once in `book_detail` (ISBN is the primary key of that table).                                                                                         |
@@ -72,7 +72,7 @@ Assumptions for requirements **not explicitly stated** in the task brief are lis
 | Topic                     | Assumption                                                                                                                                            |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Duplicate borrower        | Registering an existing `libraryId` or `username` is rejected (`409`) by UserManagement.                                                              |
-| Registration payload      | Client sends `libraryId`, `name`, `email`, `username`, and `password` (min 8 chars). IndexShelf and UserManagement both accept `POST /api/borrowers`. |
+| Registration payload      | Client sends `libraryId`, `name`, `email`, `username`, and `password` (min 8 chars). Optional `role`: `ADMIN` \| `LIBRARIAN` \| `BORROWER` (default `BORROWER`). `SUPER_ADMIN` is created only by UserManagement one-time bootstrap. IndexShelf and UserManagement both accept `POST /api/borrowers`. |
 | List borrowers            | Only UserManagement (`GET http://localhost:8082/api/borrowers`, JWT required).                                                                        |
 | Duplicate book copy id    | Registering an existing `book_copy.id` is rejected (`409`).                                                                                           |
 | Book registration payload | Client sends `id`, `isbn`, `title`, and `author` in one request; the system creates/reuses `book_detail` and creates a new `book_copy`.               |
@@ -287,9 +287,12 @@ curl -X POST http://localhost:8080/api/borrowers \
     "name": "Alice Tan",
     "email": "alice@example.com",
     "username": "alice",
-    "password": "password123"
+    "password": "password123",
+    "role": "BORROWER"
   }'
 ```
+
+`role` is optional (`ADMIN` \| `LIBRARIAN` \| `BORROWER`; default `BORROWER`). `SUPER_ADMIN` is bootstrap-only in UserManagement.
 
 **Response:** `201 Created` (password is never returned)
 
@@ -298,7 +301,8 @@ curl -X POST http://localhost:8080/api/borrowers \
   "id": 1,
   "libraryId": "LIB-001",
   "name": "Alice Tan",
-  "email": "alice@example.com"
+  "email": "alice@example.com",
+  "role": "BORROWER"
 }
 ```
 
@@ -454,8 +458,8 @@ Validation errors also include `fieldErrors`.
 
 | Table                  | Owner          | Fields                                                                                                    |
 | ---------------------- | -------------- | --------------------------------------------------------------------------------------------------------- |
-| `borrowers`            | UserManagement | `id` (PK), `library_id` (unique), `name`, `email`                                                         |
-| `borrower_credentials` | UserManagement | `id` (PK), `library_id` (FK → `borrowers`, cascade delete), `username` (unique), `password` (BCrypt hash) |
+| `borrowers`            | UserManagement | `id` (PK), `library_id` (unique), `name`, `email`, `role` (`SUPER_ADMIN` via one-time bootstrap only; registration: `ADMIN` \| `LIBRARIAN` \| `BORROWER`, default `BORROWER`) |
+| `borrower_credentials` | UserManagement | `id` (PK), `borrower_id` (FK → `borrowers.id`, cascade delete), `username` (unique), `password` (BCrypt hash) |
 | `book_detail`          | BookManagement | `isbn`, `title`, `author`                                                                                 |
 | `book_copy`            | BookManagement | `id`, `isbn`, `status` (`AVAILABLE` | `BORROWED`), `library_id` (nullable)                                |
 
