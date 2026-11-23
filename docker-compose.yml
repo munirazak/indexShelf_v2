@@ -28,7 +28,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      # Override: SPRING_PROFILES_ACTIVE=prod docker compose up --build
+      # Or set SPRING_PROFILES_ACTIVE in a local .env file (default: dev).
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       PORT: "8080"
       JWT_SECRET: indexShelf-jwt-secret-key-32chars-min
       JWT_EXPIRATION_MS: "3600000"
