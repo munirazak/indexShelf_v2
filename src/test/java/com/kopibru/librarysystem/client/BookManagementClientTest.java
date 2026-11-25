@@ -3,6 +3,7 @@ package com.kopibru.librarysystem.client;
 import com.kopibru.librarysystem.dto.BookDto;
 import com.kopibru.librarysystem.exception.BookNotAvailableException;
 import com.kopibru.librarysystem.exception.BookReturnException;
+import com.kopibru.librarysystem.exception.DuplicateBookException;
 import com.kopibru.librarysystem.exception.InvalidBookStatusException;
 import com.kopibru.librarysystem.exception.ResourceNotFoundException;
 import com.kopibru.librarysystem.model.BookStatus;
@@ -65,6 +66,37 @@ class BookManagementClientTest {
         assertThatThrownBy(() -> client.getBooks("bad"))
                 .isInstanceOf(InvalidBookStatusException.class)
                 .hasMessageContaining("Invalid status");
+        server.verify();
+    }
+
+    @Test
+    void register_returnsCreatedBook() {
+        server.expect(requestTo("http://localhost:8081/api/books"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"id":"BOOK-001","isbn":"978-1","title":"Title","author":"Author","status":"AVAILABLE"}
+                        """, MediaType.APPLICATION_JSON));
+
+        BookDto result = client.register(
+                new BookDto("BOOK-001", "978-1", "Title", "Author", null, null));
+
+        assertThat(result.getId()).isEqualTo("BOOK-001");
+        assertThat(result.getStatus()).isEqualTo(BookStatus.AVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void register_throwsDuplicateOnConflict() {
+        server.expect(requestTo("http://localhost:8081/api/books"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(CONFLICT).body("""
+                        {"error":"Book copy id already exists"}
+                        """).contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.register(
+                new BookDto("BOOK-001", "978-1", "Title", "Author", null, null)))
+                .isInstanceOf(DuplicateBookException.class)
+                .hasMessageContaining("already exists");
         server.verify();
     }
 

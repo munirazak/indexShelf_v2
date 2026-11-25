@@ -7,6 +7,7 @@ import com.kopibru.librarysystem.service.BookService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +30,9 @@ public class BookController {
         this.bookService = bookService;
     }
 
+    /**
+     * List books — SUPER_ADMIN only (enforced by SecurityConfig). Forwards to BookManagement.
+     */
     @GetMapping
     public ResponseEntity<List<BookDto>> getBooks(
             @RequestParam(defaultValue = "all") String status) {
@@ -36,6 +40,18 @@ public class BookController {
         List<BookDto> books = bookService.getBooks(status);
         log.info("Returning {} books for status={}", books.size(), status);
         return ResponseEntity.ok(books);
+    }
+
+    /**
+     * Register a book — SUPER_ADMIN only (enforced by SecurityConfig). Forwards to BookManagement.
+     */
+    @PostMapping
+    public ResponseEntity<BookDto> registerBook(@Valid @RequestBody BookDto book) {
+        log.info("POST /api/books id={} isbn={}", book.getId(), book.getIsbn());
+        BookDto registered = bookService.register(book);
+        log.info("Book registered id={} isbn={} status={}",
+                registered.getId(), registered.getIsbn(), registered.getStatus());
+        return ResponseEntity.status(HttpStatus.CREATED).body(registered);
     }
 
     @PostMapping("/borrow")

@@ -44,6 +44,19 @@ class BookServiceTest {
     }
 
     @Test
+    void register_delegatesToBookManagement() {
+        BookDto request = new BookDto("BOOK-001", "978-1", "Title", "Author", null, null);
+        BookDto response = new BookDto(
+                "BOOK-001", "978-1", "Title", "Author", BookStatus.AVAILABLE, null);
+        when(bookManagementClient.register(request)).thenReturn(response);
+
+        BookDto result = bookService.register(request);
+
+        assertThat(result.getStatus()).isEqualTo(BookStatus.AVAILABLE);
+        verify(bookManagementClient).register(request);
+    }
+
+    @Test
     void borrow_delegatesWhenBorrowerExists() {
         BorrowRequest request = new BorrowRequest("BOOK-001");
         BookDto response = new BookDto(
