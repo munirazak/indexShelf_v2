@@ -57,6 +57,21 @@ class BookControllerTest {
     }
 
     @Test
+    void registerBook_returnsCreated() throws Exception {
+        BookDto request = new BookDto("BOOK-001", "978-1", "Title", "Author", null, null);
+        BookDto response = new BookDto(
+                "BOOK-001", "978-1", "Title", "Author", BookStatus.AVAILABLE, null);
+        when(bookService.register(any(BookDto.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/books")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value("BOOK-001"))
+                .andExpect(jsonPath("$.status").value("AVAILABLE"));
+    }
+
+    @Test
     @WithMockUser(username = "LIB-001")
     void borrowBook_returnsOk() throws Exception {
         BorrowRequest request = new BorrowRequest("BOOK-001");

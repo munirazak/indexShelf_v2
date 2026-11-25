@@ -30,7 +30,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/borrowers").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/books").permitAll()
+                        // Book catalog admin ops — SUPER_ADMIN only; IndexShelf validates then forwards
+                        .requestMatchers(HttpMethod.GET, "/api/books").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/books").hasRole("SUPER_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

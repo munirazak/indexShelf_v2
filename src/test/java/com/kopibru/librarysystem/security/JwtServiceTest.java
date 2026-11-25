@@ -16,10 +16,11 @@ class JwtServiceTest {
 
     @Test
     void generateAndExtractLibraryId() {
-        String token = jwtService.generateToken("LIB-001", "alice");
+        String token = jwtService.generateToken("LIB-001", "alice", "SUPER_ADMIN");
 
         assertThat(jwtService.isTokenValid(token)).isTrue();
         assertThat(jwtService.extractLibraryId(token)).isEqualTo("LIB-001");
+        assertThat(jwtService.extractRole(token)).isEqualTo("SUPER_ADMIN");
     }
 
     @Test

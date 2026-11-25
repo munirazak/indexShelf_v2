@@ -33,6 +33,14 @@ public class BookService {
         return books;
     }
 
+    public BookDto register(BookDto book) {
+        log.info("Registering book via BookManagement id={} isbn={}", book.getId(), book.getIsbn());
+        BookDto registered = bookManagementClient.register(book);
+        log.info("Book registered id={} isbn={} status={}",
+                registered.getId(), registered.getIsbn(), registered.getStatus());
+        return registered;
+    }
+
     public BookDto borrow(String libraryId, BorrowRequest request) {
         log.info("Borrowing bookId={} for libraryId={}", request.getBookId(), libraryId);
         ensureBorrowerExists(libraryId);

@@ -57,10 +57,10 @@ Assumptions for requirements **not explicitly stated** in the task brief are lis
 
 | Topic                    | Assumption                                                                                                                                                                                 |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Login                    | IndexShelf `POST /api/auth/login` proxies to UserManagement. JWT subject is `libraryId`. Both services share `JWT_SECRET`.                                                                 |
+| Login                    | IndexShelf `POST /api/auth/login` proxies to UserManagement. JWT subject is `libraryId`; claim `role` carries `SUPER_ADMIN` / `ADMIN` / `LIBRARIAN` / `BORROWER`. Both services share `JWT_SECRET`. |
 | Password storage         | UserManagement hashes passwords with BCrypt; never returned in API responses.                                                                                                              |
 | Borrow / return identity | Taken from the JWT (`Authorization: Bearer …`), not from the request body — prevents acting as another borrower.                                                                           |
-| Public endpoints         | `POST /api/auth/login`, `POST /api/borrowers`, `GET /api/books` are unauthenticated. Other IndexShelf endpoints require a valid JWT. `GET /api/borrowers` is **not** served by IndexShelf. |
+| Public endpoints         | `POST /api/auth/login`, `POST /api/borrowers` are unauthenticated. `GET /api/books` and `POST /api/books` require JWT with role `SUPER_ADMIN` (IndexShelf validates, then forwards to BookManagement). Borrow/return require any valid JWT. `GET /api/borrowers` is **not** served by IndexShelf. |
 | Multiple tokens          | Stateless JWTs: logging in again issues a new token; existing unexpired tokens remain valid until `app.jwt.expiration-ms`.                                                                 |
 
 
@@ -77,7 +77,7 @@ Assumptions for requirements **not explicitly stated** in the task brief are lis
 | Duplicate book copy id    | Registering an existing `book_copy.id` is rejected (`409`).                                                                                           |
 | Book registration payload | Client sends `id`, `isbn`, `title`, and `author` in one request; the system creates/reuses `book_detail` and creates a new `book_copy`.               |
 | Default copy status       | New copies are `AVAILABLE` (created by BookManagement).                                                                                               |
-| Book registration         | Handled by **BookManagement** (`POST /api/books`, `POST /api/books/from-file` on port `8081`).                                                        |
+| Book registration         | Public edge on **IndexShelf** (`POST /api/books`, SUPER_ADMIN JWT). Forwards to BookManagement. File import remains on BookManagement (`POST /api/books/from-file`). |
 
 
 
@@ -334,22 +334,37 @@ IndexShelf keeps borrower-facing list / borrow / return on port `8080` and deleg
 
 ### Search / list books
 
-`GET /api/books?status={all|available|borrowed}` (public)
+`GET /api/books?status={all|available|borrowed}` (**SUPER_ADMIN JWT required**)
 
-`libraryId` is not returned on this endpoint.
+IndexShelf validates `SUPER_ADMIN`, then forwards to BookManagement. `libraryId` is not returned on this endpoint.
 
 ```bash
 # All books (default)
-curl http://localhost:8080/api/books
+curl http://localhost:8080/api/books \
+  -H "Authorization: Bearer <super-admin-token>"
 
 # Available only
-curl "http://localhost:8080/api/books?status=available"
-
-# Borrowed only
-curl "http://localhost:8080/api/books?status=borrowed"
+curl "http://localhost:8080/api/books?status=available" \
+  -H "Authorization: Bearer <super-admin-token>"
 ```
 
+### Register a book
 
+`POST /api/books` (**SUPER_ADMIN JWT required**)
+
+IndexShelf validates `SUPER_ADMIN`, then forwards to BookManagement `POST /api/books`.
+
+```bash
+curl -X POST http://localhost:8080/api/books \
+  -H "Authorization: Bearer <super-admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "BOOK-001",
+    "isbn": "978-0134685991",
+    "title": "Effective Java",
+    "author": "Joshua Bloch"
+  }'
+```
 
 ### Borrow a book
 
@@ -415,8 +430,9 @@ curl -X POST http://localhost:8080/api/books/return \
 ## Typical flow
 
 1. Register a borrower → `POST http://localhost:8080/api/borrowers` (or `POST http://localhost:8082/api/borrowers`)
-2. Login → `POST http://localhost:8080/api/auth/login` (or UserManagement `8082`; save the `token`)
-3. List borrowers (UserManagement only) → `GET http://localhost:8082/api/borrowers` (with Bearer token)
+2. Login → `POST http://localhost:8080/api/auth/login` (or UserManagement `8082`; save the `token`; SUPER_ADMIN for catalog admin)
+3. List / register books (SUPER_ADMIN) → `GET|POST http://localhost:8080/api/books`
+4. List borrowers (UserManagement only) → `GET http://localhost:8082/api/borrowers` (with Bearer token)
 4. Register or import books → BookManagement `POST http://localhost:8081/api/books` (or `/from-file`)
 5. List available books → `GET http://localhost:8080/api/books?status=available`
 6. Borrow → `POST http://localhost:8080/api/books/borrow` (with Bearer token)

@@ -3,6 +3,7 @@ package com.kopibru.librarysystem.client;
 import com.kopibru.librarysystem.dto.BookDto;
 import com.kopibru.librarysystem.exception.BookNotAvailableException;
 import com.kopibru.librarysystem.exception.BookReturnException;
+import com.kopibru.librarysystem.exception.DuplicateBookException;
 import com.kopibru.librarysystem.exception.InvalidBookStatusException;
 import com.kopibru.librarysystem.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +40,17 @@ public class BookManagementClient {
                 })
                 .body(new ParameterizedTypeReference<List<BookDto>>() {
                 });
+    }
+
+    public BookDto register(BookDto book) {
+        return restClient.post()
+                .uri("/api/books")
+                .body(book)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (request, response) -> {
+                    throw mapRegisterError(response.getStatusCode().value(), readBody(response));
+                })
+                .body(BookDto.class);
     }
 
     public BookDto borrow(String bookId, String libraryId) {
@@ -79,6 +91,15 @@ public class BookManagementClient {
             case 404 -> new ResourceNotFoundException(message);
             case 409 -> new BookReturnException(message);
             case 400 -> new InvalidBookStatusException(message);
+            default -> new IllegalStateException("BookManagement error (" + status + "): " + message);
+        };
+    }
+
+    private RuntimeException mapRegisterError(int status, String body) {
+        String message = extractErrorMessage(body);
+        return switch (status) {
+            case 409 -> new DuplicateBookException(message);
+            case 400 -> new IllegalArgumentException(message);
             default -> new IllegalStateException("BookManagement error (" + status + "): " + message);
         };
     }
