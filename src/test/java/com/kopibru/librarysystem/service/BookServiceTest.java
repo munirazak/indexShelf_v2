@@ -3,6 +3,7 @@ package com.kopibru.librarysystem.service;
 import com.kopibru.librarysystem.client.BookManagementClient;
 import com.kopibru.librarysystem.client.UserManagementClient;
 import com.kopibru.librarysystem.dto.BookDto;
+import com.kopibru.librarysystem.dto.BookImportResult;
 import com.kopibru.librarysystem.dto.BorrowRequest;
 import com.kopibru.librarysystem.exception.BookNotAvailableException;
 import com.kopibru.librarysystem.exception.ResourceNotFoundException;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 
@@ -54,6 +56,21 @@ class BookServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(BookStatus.AVAILABLE);
         verify(bookManagementClient).register(request);
+    }
+
+    @Test
+    void importFromFile_delegatesToBookManagement() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "books.txt", "text/plain", "BOOK-001|978-1|Title|Author".getBytes());
+        BookImportResult response = new BookImportResult(
+                List.of(new BookDto("BOOK-001", "978-1", "Title", "Author", BookStatus.AVAILABLE, null)),
+                List.of());
+        when(bookManagementClient.importFromFile(file)).thenReturn(response);
+
+        BookImportResult result = bookService.importFromFile(file);
+
+        assertThat(result.getRegistered()).hasSize(1);
+        verify(bookManagementClient).importFromFile(file);
     }
 
     @Test

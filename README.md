@@ -60,7 +60,7 @@ Assumptions for requirements **not explicitly stated** in the task brief are lis
 | Login                    | IndexShelf `POST /api/auth/login` proxies to UserManagement. JWT subject is `libraryId`; claim `role` carries `SUPER_ADMIN` / `ADMIN` / `LIBRARIAN` / `BORROWER`. Both services share `JWT_SECRET`. |
 | Password storage         | UserManagement hashes passwords with BCrypt; never returned in API responses.                                                                                                              |
 | Borrow / return identity | Taken from the JWT (`Authorization: Bearer …`), not from the request body — prevents acting as another borrower.                                                                           |
-| Public endpoints         | `POST /api/auth/login`, `POST /api/borrowers` are unauthenticated. `GET /api/books` and `POST /api/books` require JWT with role `SUPER_ADMIN` (IndexShelf validates, then forwards to BookManagement). Borrow/return require any valid JWT. `GET /api/borrowers` is **not** served by IndexShelf. |
+| Public endpoints         | `POST /api/auth/login`, `POST /api/borrowers` are unauthenticated. `GET /api/books`, `POST /api/books`, and `POST /api/books/from-file` require JWT with role `SUPER_ADMIN` (IndexShelf validates, then forwards to BookManagement with internal API key). Borrow/return require any valid JWT. |
 | Multiple tokens          | Stateless JWTs: logging in again issues a new token; existing unexpired tokens remain valid until `app.jwt.expiration-ms`.                                                                 |
 
 
@@ -77,7 +77,7 @@ Assumptions for requirements **not explicitly stated** in the task brief are lis
 | Duplicate book copy id    | Registering an existing `book_copy.id` is rejected (`409`).                                                                                           |
 | Book registration payload | Client sends `id`, `isbn`, `title`, and `author` in one request; the system creates/reuses `book_detail` and creates a new `book_copy`.               |
 | Default copy status       | New copies are `AVAILABLE` (created by BookManagement).                                                                                               |
-| Book registration         | Public edge on **IndexShelf** (`POST /api/books`, SUPER_ADMIN JWT). Forwards to BookManagement. File import remains on BookManagement (`POST /api/books/from-file`). |
+| Book registration         | Public edge on **IndexShelf**: `POST /api/books` and `POST /api/books/from-file` (SUPER_ADMIN JWT). Forwards to BookManagement with internal API key. Direct BookManagement `/api/**` access without the key is rejected (`401`). |
 
 
 
@@ -177,6 +177,7 @@ On GCP (Cloud Run), configure env vars such as:
 - `PORT` — leave to Google, or set explicitly
 - `JWT_SECRET` — same value as UserManagement
 - `BOOKMANAGEMENT_BASE_URL` — Cloud Run URL of BookManagement (e.g. `https://book-management-....run.app`)
+- `INTERNAL_API_KEY` — shared secret with BookManagement (`X-Internal-Api-Key`); required for IndexShelf → BookManagement calls
 - `USERMANAGEMENT_BASE_URL` — Cloud Run URL of UserManagement (e.g. `https://user-management-....run.app`)
 
 IndexShelf has **no database** / Cloud SQL. Do **not** bake `prod` into the JAR; override with env vars at deploy time.
@@ -323,14 +324,16 @@ curl http://localhost:8082/api/borrowers \
 
 ## Books
 
-Book **catalog ownership** is in **BookManagement** (`http://localhost:8081`):
+Book **catalog ownership** is in **BookManagement** (`http://localhost:8081`), but those APIs are **internal only**.
+Callers must send header `X-Internal-Api-Key` (env `INTERNAL_API_KEY`, shared with IndexShelf). IndexShelf adds this header automatically.
 
-- `POST http://localhost:8081/api/books` — register
-- `POST http://localhost:8081/api/books/from-file` — import
-- `GET http://localhost:8081/api/books` — list (also proxied by IndexShelf)
-- `POST http://localhost:8081/api/books/{bookId}/borrow|return` — used internally by IndexShelf
+Public/borrower-facing book APIs are on **IndexShelf** (`http://localhost:8080`):
 
-IndexShelf keeps borrower-facing list / borrow / return on port `8080` and delegates book_copy access to BookManagement.
+- `GET|POST http://localhost:8080/api/books` — list/register (SUPER_ADMIN JWT)
+- `POST http://localhost:8080/api/books/from-file` — import from `.txt`/`.dat` (SUPER_ADMIN JWT)
+- `POST http://localhost:8080/api/books/borrow|return` — borrow/return (any JWT)
+
+Do not call BookManagement `/api/**` from clients without the internal key (including `/from-file`).
 
 ### Search / list books
 
@@ -364,6 +367,18 @@ curl -X POST http://localhost:8080/api/books \
     "title": "Effective Java",
     "author": "Joshua Bloch"
   }'
+```
+
+### Import books from file
+
+`POST /api/books/from-file` (**SUPER_ADMIN JWT required**)
+
+IndexShelf validates `SUPER_ADMIN`, then forwards the multipart file to BookManagement (with `X-Internal-Api-Key`). Direct calls to `http://localhost:8081/api/books/from-file` without that key return `401`.
+
+```bash
+curl -X POST http://localhost:8080/api/books/from-file \
+  -H "Authorization: Bearer <super-admin-token>" \
+  -F "file=@sample-books.txt"
 ```
 
 ### Borrow a book
@@ -433,7 +448,7 @@ curl -X POST http://localhost:8080/api/books/return \
 2. Login → `POST http://localhost:8080/api/auth/login` (or UserManagement `8082`; save the `token`; SUPER_ADMIN for catalog admin)
 3. List / register books (SUPER_ADMIN) → `GET|POST http://localhost:8080/api/books`
 4. List borrowers (UserManagement only) → `GET http://localhost:8082/api/borrowers` (with Bearer token)
-4. Register or import books → BookManagement `POST http://localhost:8081/api/books` (or `/from-file`)
+4. Register books (SUPER_ADMIN) → IndexShelf `POST http://localhost:8080/api/books` (forwards to BookManagement with internal API key)
 5. List available books → `GET http://localhost:8080/api/books?status=available`
 6. Borrow → `POST http://localhost:8080/api/books/borrow` (with Bearer token)
 7. Return → `POST http://localhost:8080/api/books/return` (with Bearer token)

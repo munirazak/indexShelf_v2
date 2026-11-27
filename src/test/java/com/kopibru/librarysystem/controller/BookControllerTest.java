@@ -1,6 +1,7 @@
 package com.kopibru.librarysystem.controller;
 
 import com.kopibru.librarysystem.dto.BookDto;
+import com.kopibru.librarysystem.dto.BookImportResult;
 import com.kopibru.librarysystem.dto.BorrowRequest;
 import com.kopibru.librarysystem.exception.BookNotAvailableException;
 import com.kopibru.librarysystem.exception.GlobalExceptionHandler;
@@ -16,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,6 +72,19 @@ class BookControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value("BOOK-001"))
                 .andExpect(jsonPath("$.status").value("AVAILABLE"));
+    }
+
+    @Test
+    void importBooksFromFile_returnsCreated() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "books.txt", "text/plain", "BOOK-001|978-1|Title|Author".getBytes());
+        when(bookService.importFromFile(any())).thenReturn(new BookImportResult(
+                List.of(new BookDto("BOOK-001", "978-1", "Title", "Author", BookStatus.AVAILABLE, null)),
+                List.of()));
+
+        mockMvc.perform(multipart("/api/books/from-file").file(file))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registered[0].id").value("BOOK-001"));
     }
 
     @Test

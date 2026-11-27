@@ -36,6 +36,8 @@ services:
       JWT_EXPIRATION_MS: "3600000"
       BOOKMANAGEMENT_BASE_URL: http://host.docker.internal:8081
       USERMANAGEMENT_BASE_URL: http://host.docker.internal:8082
+      # Must match BookManagement INTERNAL_API_KEY
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-indexShelf-to-bookmanagement-internal-key-change-me}
 
 volumes:
   indexShelf_pg_data:

@@ -1,6 +1,7 @@
 package com.kopibru.librarysystem.controller;
 
 import com.kopibru.librarysystem.dto.BookDto;
+import com.kopibru.librarysystem.dto.BookImportResult;
 import com.kopibru.librarysystem.dto.BorrowRequest;
 import com.kopibru.librarysystem.security.AuthenticationUtils;
 import com.kopibru.librarysystem.service.BookService;
@@ -8,6 +9,7 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -52,6 +55,19 @@ public class BookController {
         log.info("Book registered id={} isbn={} status={}",
                 registered.getId(), registered.getIsbn(), registered.getStatus());
         return ResponseEntity.status(HttpStatus.CREATED).body(registered);
+    }
+
+    /**
+     * Import books from file — SUPER_ADMIN only. Forwards multipart to BookManagement
+     * (BookManagement rejects direct public access without internal API key).
+     */
+    @PostMapping(value = "/from-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<BookImportResult> importBooksFromFile(@RequestParam("file") MultipartFile file) {
+        log.info("POST /api/books/from-file filename={}", file.getOriginalFilename());
+        BookImportResult result = bookService.importFromFile(file);
+        log.info("Imported {} books ({} errors) from file={}",
+                result.getRegistered().size(), result.getErrors().size(), file.getOriginalFilename());
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @PostMapping("/borrow")

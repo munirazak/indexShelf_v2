@@ -1,9 +1,11 @@
 package com.kopibru.librarysystem.client;
 
 import com.kopibru.librarysystem.dto.BookDto;
+import com.kopibru.librarysystem.dto.BookImportResult;
 import com.kopibru.librarysystem.exception.BookNotAvailableException;
 import com.kopibru.librarysystem.exception.BookReturnException;
 import com.kopibru.librarysystem.exception.DuplicateBookException;
+import com.kopibru.librarysystem.exception.InvalidBookFileException;
 import com.kopibru.librarysystem.exception.InvalidBookStatusException;
 import com.kopibru.librarysystem.exception.ResourceNotFoundException;
 import com.kopibru.librarysystem.model.BookStatus;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -97,6 +100,38 @@ class BookManagementClientTest {
                 new BookDto("BOOK-001", "978-1", "Title", "Author", null, null)))
                 .isInstanceOf(DuplicateBookException.class)
                 .hasMessageContaining("already exists");
+        server.verify();
+    }
+
+    @Test
+    void importFromFile_returnsResult() {
+        server.expect(requestTo("http://localhost:8081/api/books/from-file"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"registered":[{"id":"BOOK-001","isbn":"978-1","title":"Title","author":"Author","status":"AVAILABLE"}],
+                         "errors":[]}
+                        """, MediaType.APPLICATION_JSON));
+
+        BookImportResult result = client.importFromFile(new MockMultipartFile(
+                "file", "books.txt", "text/plain", "BOOK-001|978-1|Title|Author".getBytes()));
+
+        assertThat(result.getRegistered()).hasSize(1);
+        assertThat(result.getRegistered().get(0).getId()).isEqualTo("BOOK-001");
+        server.verify();
+    }
+
+    @Test
+    void importFromFile_throwsInvalidFileOnBadRequest() {
+        server.expect(requestTo("http://localhost:8081/api/books/from-file"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withBadRequest().body("""
+                        {"error":"Only .txt or .dat book files are supported"}
+                        """).contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.importFromFile(new MockMultipartFile(
+                "file", "books.csv", "text/csv", "x".getBytes())))
+                .isInstanceOf(InvalidBookFileException.class)
+                .hasMessageContaining(".txt or .dat");
         server.verify();
     }
 
