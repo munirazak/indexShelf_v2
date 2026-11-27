@@ -1,18 +1,26 @@
 package com.kopibru.librarysystem.client;
 
 import com.kopibru.librarysystem.dto.BookDto;
+import com.kopibru.librarysystem.dto.BookImportResult;
 import com.kopibru.librarysystem.exception.BookNotAvailableException;
 import com.kopibru.librarysystem.exception.BookReturnException;
 import com.kopibru.librarysystem.exception.DuplicateBookException;
+import com.kopibru.librarysystem.exception.InvalidBookFileException;
 import com.kopibru.librarysystem.exception.InvalidBookStatusException;
 import com.kopibru.librarysystem.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -51,6 +59,20 @@ public class BookManagementClient {
                     throw mapRegisterError(response.getStatusCode().value(), readBody(response));
                 })
                 .body(BookDto.class);
+    }
+
+    public BookImportResult importFromFile(MultipartFile file) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", toNamedResource(file));
+        return restClient.post()
+                .uri("/api/books/from-file")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (request, response) -> {
+                    throw mapImportError(response.getStatusCode().value(), readBody(response));
+                })
+                .body(BookImportResult.class);
     }
 
     public BookDto borrow(String bookId, String libraryId) {
@@ -102,6 +124,30 @@ public class BookManagementClient {
             case 400 -> new IllegalArgumentException(message);
             default -> new IllegalStateException("BookManagement error (" + status + "): " + message);
         };
+    }
+
+    private RuntimeException mapImportError(int status, String body) {
+        String message = extractErrorMessage(body);
+        return switch (status) {
+            case 400 -> new InvalidBookFileException(message);
+            case 401 -> new IllegalStateException(
+                    "BookManagement rejected internal API key. Check INTERNAL_API_KEY on both services.");
+            default -> new IllegalStateException("BookManagement error (" + status + "): " + message);
+        };
+    }
+
+    private ByteArrayResource toNamedResource(MultipartFile file) {
+        try {
+            String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "books.txt";
+            return new ByteArrayResource(file.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return filename;
+                }
+            };
+        } catch (IOException ex) {
+            throw new InvalidBookFileException("Failed to read uploaded book file");
+        }
     }
 
     private RuntimeException mapError(int status, String body) {

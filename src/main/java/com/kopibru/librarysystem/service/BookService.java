@@ -3,11 +3,13 @@ package com.kopibru.librarysystem.service;
 import com.kopibru.librarysystem.client.BookManagementClient;
 import com.kopibru.librarysystem.client.UserManagementClient;
 import com.kopibru.librarysystem.dto.BookDto;
+import com.kopibru.librarysystem.dto.BookImportResult;
 import com.kopibru.librarysystem.dto.BorrowRequest;
 import com.kopibru.librarysystem.exception.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -39,6 +41,14 @@ public class BookService {
         log.info("Book registered id={} isbn={} status={}",
                 registered.getId(), registered.getIsbn(), registered.getStatus());
         return registered;
+    }
+
+    public BookImportResult importFromFile(MultipartFile file) {
+        log.info("Importing books via BookManagement filename={}", file.getOriginalFilename());
+        BookImportResult result = bookManagementClient.importFromFile(file);
+        log.info("Import completed registered={} errors={}",
+                result.getRegistered().size(), result.getErrors().size());
+        return result;
     }
 
     public BookDto borrow(String libraryId, BorrowRequest request) {
